@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>xnotes</title>
+<style>
+  :root {
+    --paper: #F3EFE6;
+    --paper-dark: #1B1A17;
+    --ink: #262420;
+    --ink-dark: #EDE9E0;
+    --line: #DAD3C2;
+    --line-dark: #38352E;
+    --accent: #3A6EA5;
+    --panel: #FFFFFF;
+    --panel-dark: #242220;
+    --muted: #8B8371;
+    --bezel: #FFFFFF;
+    --bezel-dark: #000000;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: 'Source Serif 4', Georgia, serif;
+    background: var(--paper);
+    color: var(--ink);
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; width: 100%; }
+  body.dark { background: var(--paper-dark); color: var(--ink-dark); }
+
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    font-family: system-ui, sans-serif;
+  }
+  body.dark #topbar { border-color: var(--line-dark); }
+  #brandwrap { display: flex; align-items: center; gap: 8px; }
+  #brand { font-family: 'Source Serif 4', Georgia, serif; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
+  #sidePill {
+    font-family: system-ui, sans-serif; font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 20px; padding: 2px 8px;
+    transition: opacity 0.15s;
+  }
+  #topbar-actions { display: flex; gap: 6px; }
+  .iconbtn {
+    border: none; background: transparent; color: inherit;
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px;
+  }
+  .iconbtn:active { background: rgba(0,0,0,0.06); }
+  body.dark .iconbtn:active { background: rgba(255,255,255,0.08); }
+
+  /* ---------- flashcard stage ---------- */
+  #stage {
+    position: relative; flex: 1; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 18px; background: var(--paper);
+    perspective: 1600px;
+  }
+  body.dark #stage { background: var(--paper-dark); }
+
+  #card {
+    position: relative;
+    width: 100%; height: 100%; max-width: 640px;
+    transform-style: preserve-3d;
+    touch-action: none;
+    will-change: transform;
+  }
+
+  .face {
+    position: absolute; inset: 0;
+    background: var(--bezel);
+    border-radius: 18px;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    box-shadow: 0 14px 34px rgba(30,25,15,0.22), 0 2px 6px rgba(30,25,15,0.12);
+    display: flex; flex-direction: column;
+    padding: 13px;
+    cursor: grab;
+  }
+  body.dark .face { background: var(--bezel-dark); box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35); }
+  .face.back { transform: rotateY(180deg); }
+  .face:active { cursor: grabbing; }
+
+  .face-label {
+    position: absolute; top: 10px; left: 16px;
+    font-family: system-ui, sans-serif; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    pointer-events: none; z-index: 3;
+  }
+
+  .sheen {
+    position: absolute; inset: 0; border-radius: 18px;
+    background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.55) 50%, transparent 65%);
+    mix-blend-mode: overlay; opacity: 0; pointer-events: none; z-index: 4;
+  }
+
+  .flip-handle {
+    position: absolute; bottom: 12px; right: 12px; z-index: 5;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--panel); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--ink); cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  body.dark .flip-handle { background: var(--panel-dark); border-color: var(--line-dark); color: var(--ink-dark); }
+
+  #canvas-wrap-front, #canvas-wrap-back {
+    position: relative; flex: 1; overflow: hidden;
+    background: var(--paper); border-radius: 10px;
+    margin-top: 18px;
+  }
+  body.dark #canvas-wrap-front, body.dark #canvas-wrap-back { background: var(--paper-dark); }
+  canvas { position: absolute; top: 0; left: 0; touch-action: none; border-radius: 10px; }
+
+  #flip-hint {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, sans-serif; font-size: 11.5px; color: var(--muted);
+    background: var(--panel); padding: 5px 10px; border-radius: 20px;
+    opacity: 0.92; pointer-events: none; transition: opacity 0.4s; z-index: 6;
+  }
+  body.dark #flip-hint { background: var(--panel-dark); }
+
+  #dock {
+    display: flex; align-items: center; gap: 2px; padding: 8px 10px;
+    border-top: 1px solid var(--line); overflow-x: auto;
+    font-family: system-ui, sans-serif; background: var(--paper);
+  }
+  body.dark #dock { border-color: var(--line-dark); background: var(--paper-dark); }
+
+  .tool {
+    border: 1px solid transparent; background: transparent; color: inherit;
+    width: 42px; height: 42px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 17px; cursor: pointer;
+  }
+  .tool.active { background: var(--panel); border-color: var(--line); }
+  body.dark .tool.active { background: var(--panel-dark); border-color: var(--line-dark); }
+
+  .divider { width: 1px; height: 26px; background: var(--line); margin: 0 6px; flex-shrink: 0; }
+  body.dark .divider { background: var(--line-dark); }
+
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+    border: 2px solid var(--line); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  body.dark .swatch { border-color: var(--line-dark); }
+  .swatch.active { border-color: var(--accent); box-shadow: none; }
+
+  .eraser-cursor {
+    position: absolute; z-index: 8; border-radius: 50%;
+    border: 1.5px solid rgba(120,115,100,0.55);
+    background: rgba(140,135,120,0.18);
+    pointer-events: none; transform: translate(-50%, -50%);
+    display: none;
+  }
+  body.dark .eraser-cursor { border-color: rgba(220,215,200,0.55); background: rgba(220,215,200,0.16); }
+
+  #width-slider { width: 70px; flex-shrink: 0; }
+
+  .text-input-overlay {
+    position: absolute; background: transparent; border: 1px dashed var(--accent);
+    outline: none; font-family: 'Source Serif 4', Georgia, serif;
+    padding: 2px 4px; color: inherit; min-width: 40px; z-index: 7;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="brandwrap">
+      <div id="brand">xnotes</div>
+      <div id="sidePill">Front</div>
+    </div>
+    <div id="topbar-actions">
+      <button class="iconbtn" id="flipBtn" title="Flip card">&#8635;</button>
+      <button class="iconbtn" id="undoBtn" title="Undo">&#8630;</button>
+      <button class="iconbtn" id="redoBtn" title="Redo">&#8631;</button>
+      <button class="iconbtn" id="clearBtn" title="Clear this side">&#9166;</button>
+      <button class="iconbtn" id="darkBtn" title="Toggle dark mode">&#9680;</button>
+      <button class="iconbtn" id="palmBtn" title="Palm rejection: auto (on after first pen use)">&#9995;</button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <div id="card">
+      <div class="face front" id="faceFront">
+        <div class="face-label">Front</div>
+        <div class="sheen" id="sheenFront"></div>
+        <div class="flip-handle" id="flipHandleFront" title="Drag to flip">&#8635;</div>
+        <div id="canvas-wrap-front">
+          <canvas id="canvasFront"></canvas>
+          <canvas id="liveFront"></canvas>
+          <div class="eraser-cursor" id="eraserCursorFront"></div>
+        </div>
+      </div>
+      <div class="face back" id="faceBack">
+        <div class="face-label">Back</div>
+        <div class="sheen" id="sheenBack"></div>
+        <div class="flip-handle" id="flipHandleBack" title="Drag to flip">&#8635;</div>
+        <div id="canvas-wrap-back">
+          <canvas id="canvasBack"></canvas>
+          <canvas id="liveBack"></canvas>
+          <div class="eraser-cursor" id="eraserCursorBack"></div>
+        </div>
+      </div>
+    </div>
+    <div id="flip-hint">Swipe with two fingers anywhere to flip &mdash; one finger/stylus writes</div>
+  </div>
+
+  <div id="dock">
+    <button class="tool active" data-tool="pen" title="Pen">&#9998;</button>
+    <button class="tool" data-tool="highlighter" title="Highlighter">&#9646;</button>
+    <button class="tool" data-tool="neon" title="Neon pen">&#10022;</button>
+    <button class="tool" data-tool="calligraphy" title="Calligraphy pen">&#10002;</button>
+    <button class="tool" data-tool="eraser" title="Eraser">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.5 12.5 8.7 22.3H4.2a1.4 1.4 0 0 1-1-.4l-2-2a1.4 1.4 0 0 1 0-2L14.9 4.2a1.4 1.4 0 0 1 2 0l4.9 4.9a1.4 1.4 0 0 1 0 2l-3.3 3.3Z" />
+        <path d="M13.4 6.7 19.8 13" />
+        <path d="M8.7 22.3H21" />
+      </svg>
+    </button>
+    <div class="divider"></div>
+    <button class="tool" data-tool="line" title="Line">&#9585;</button>
+    <button class="tool" data-tool="rect" title="Rectangle">&#9645;</button>
+    <button class="tool" data-tool="ellipse" title="Ellipse">&#9711;</button>
+    <button class="tool" data-tool="text" title="Text">T</button>
+    <div class="divider"></div>
+    <span class="swatch" data-color="#FFFFFF" style="background:#FFFFFF"></span>
+    <span class="swatch active" data-color="#000000" style="background:#000000"></span>
+    <span class="swatch" data-color="#2563EB" style="background:#2563EB"></span>
+    <span class="swatch" data-color="#DC2626" style="background:#DC2626"></span>
+    <div class="divider"></div>
+    <input type="range" id="width-slider" min="1" max="10" value="3" title="Base width" />
+  </div>
+</div>
+
+<script>
+(function () {
+  const wrap = document.getElementById('app');
+  const stage = document.getElementById('stage');
+  const card = document.getElementById('card');
+  const flipHint = document.getElementById('flip-hint');
+  const sidePill = document.getElementById('sidePill');
+  const sheenFront = document.getElementById('sheenFront');
+  const sheenBack = document.getElementById('sheenBack');
+
+  let dpr = Math.max(window.devicePixelRatio || 1, 1);
+  let currentTool = 'pen';
+  let currentColor = '#000000';
+  let baseWidth = 3;
+  let dark = false;
+  let hasStylus = false;      // flips true the first time a real pen contact is seen
+  let activePointerId = null; // only one drawing contact acts at a time, globally
+
+  // ============ per-side drawing state ============
+  const ERASER_RADIUS = 14; // keep in sync with the hit threshold in eraseNear
+
+  function makeSide(name, canvasWrapId, canvasId, liveId, eraserCursorId) {
+    const canvasWrap = document.getElementById(canvasWrapId);
+    const canvas = document.getElementById(canvasId);
+    const live = document.getElementById(liveId);
+    const eraserCursor = document.getElementById(eraserCursorId);
+    eraserCursor.style.width = (ERASER_RADIUS * 2) + 'px';
+    eraserCursor.style.height = (ERASER_RADIUS * 2) + 'px';
+    return {
+      name, canvasWrap, canvas, live, eraserCursor,
+      ctx: canvas.getContext('2d'),
+      lctx: live.getContext('2d'),
+      strokes: [],
+      redoStack: [],
+      activeStroke: null,
+      shapeStart: null,
+      textEditor: null,
+    };
+  }
+  const sides = {
+    front: makeSide('front', 'canvas-wrap-front', 'canvasFront', 'liveFront', 'eraserCursorFront'),
+    back: makeSide('back', 'canvas-wrap-back', 'canvasBack', 'liveBack', 'eraserCursorBack'),
+  };
+
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  const NIB_ANGLE = Math.PI / 4;
+
+  function widthForTool(tool, pressure, angle) {
+    const p = pressure && pressure > 0 ? pressure : 0.5;
+    if (tool === 'highlighter') return baseWidth * 3.2;
+    if (tool === 'neon') return baseWidth * 1.6 * (0.6 + p * 0.8);
+    if (tool === 'calligraphy') {
+      const a = angle || 0;
+      const raw = Math.abs(Math.sin(a - NIB_ANGLE));
+      // sharpen the transition so strokes along the nib angle go near-hairline
+      // while strokes across it swell to full width, like a real flat nib
+      const s = Math.pow(raw, 0.7);
+      const nibWidth = baseWidth * 2.8 * (0.06 + 0.94 * s);
+      // a light pressure influence layered on top, since real nibs still
+      // respond a little to how hard you press
+      return nibWidth * (0.85 + p * 0.3);
+    }
+    return baseWidth * (0.35 + p * 1.5);
+  }
+
+  function smoothPoints(pts) {
+    if (pts.length < 3) return pts.slice();
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+      out.push({
+        x: (p0.x + p1.x * 2 + p2.x) / 4,
+        y: (p0.y + p1.y * 2 + p2.y) / 4,
+        pressure: (p0.pressure + p1.pressure * 2 + p2.pressure) / 4,
+      });
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function densify(pts) {
+    if (pts.length < 2) return pts.slice();
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const segLen = dist(p1, p2);
+      const steps = Math.max(2, Math.min(14, Math.round(segLen / 2.2)));
+      for (let s = 0; s < steps; s++) {
+        const t = s / steps;
+        const t2 = t * t, t3 = t2 * t;
+        const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 + (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3);
+        const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 + (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3);
+        const pressure = p1.pressure + (p2.pressure - p1.pressure) * t;
+        out.push({ x, y, pressure });
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function ribbonPath(strokeCtx, points, tool) {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      const r = widthForTool(tool, points[0].pressure, 0) / 2;
+      strokeCtx.beginPath();
+      strokeCtx.arc(points[0].x, points[0].y, r, 0, Math.PI * 2);
+      strokeCtx.fill();
+      return;
+    }
+    const left = [];
+    const right = [];
+    const widths = [];
+    for (let i = 0; i < points.length; i++) {
+      const prev = points[Math.max(0, i - 1)];
+      const next = points[Math.min(points.length - 1, i + 1)];
+      const rawDx = next.x - prev.x, rawDy = next.y - prev.y;
+      const angle = Math.atan2(rawDy, rawDx);
+      const len = Math.hypot(rawDx, rawDy) || 1;
+      const dx = rawDx / len, dy = rawDy / len;
+      const nx = -dy, ny = dx;
+      const w = widthForTool(tool, points[i].pressure, angle) / 2;
+      widths.push(w);
+      left.push({ x: points[i].x + nx * w, y: points[i].y + ny * w });
+      right.push({ x: points[i].x - nx * w, y: points[i].y - ny * w });
+    }
+    strokeCtx.beginPath();
+    strokeCtx.moveTo(left[0].x, left[0].y);
+    for (let i = 1; i < left.length; i++) strokeCtx.lineTo(left[i].x, left[i].y);
+    const endW = widths[widths.length - 1];
+    strokeCtx.arc(points[points.length - 1].x, points[points.length - 1].y, endW, Math.atan2(left[left.length-1].y - points[points.length-1].y, left[left.length-1].x - points[points.length-1].x), Math.atan2(right[right.length-1].y - points[points.length-1].y, right[right.length-1].x - points[points.length-1].x));
+    for (let i = right.length - 1; i >= 0; i--) strokeCtx.lineTo(right[i].x, right[i].y);
+    const startW = widths[0];
+    strokeCtx.arc(points[0].x, points[0].y, startW, Math.atan2(right[0].y - points[0].y, right[0].x - points[0].x), Math.atan2(left[0].y - points[0].y, left[0].x - points[0].x));
+    strokeCtx.closePath();
+    strokeCtx.fill();
+  }
+
+  function ribbonPathScaled(strokeCtx, points, scale) {
+    const scaled = points.map(p => ({ x: p.x, y: p.y, pressure: p.pressure * scale }));
+    ribbonPath(strokeCtx, scaled, 'neon');
+  }
+
+  function drawFreehand(strokeCtx, stroke) {
+    const raw = stroke.points;
+    if (raw.length === 0) return;
+    const pts = densify(smoothPoints(raw));
+    strokeCtx.save();
+    if (stroke.tool === 'highlighter') {
+      strokeCtx.globalCompositeOperation = 'multiply';
+      strokeCtx.globalAlpha = 0.75;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+    } else if (stroke.tool === 'neon') {
+      strokeCtx.globalCompositeOperation = 'lighter';
+      strokeCtx.shadowBlur = baseWidth * 3;
+      strokeCtx.shadowColor = stroke.color;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+      strokeCtx.shadowBlur = 0;
+      strokeCtx.globalAlpha = 0.9;
+      strokeCtx.fillStyle = '#ffffff';
+      const core = pts.map(p => ({ ...p, pressure: p.pressure }));
+      strokeCtx.save();
+      strokeCtx.globalCompositeOperation = 'lighter';
+      ribbonPathScaled(strokeCtx, core, 0.35);
+      strokeCtx.restore();
+    } else {
+      strokeCtx.globalCompositeOperation = 'source-over';
+      strokeCtx.globalAlpha = 1;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+    }
+    strokeCtx.restore();
+  }
+
+  function drawShape(strokeCtx, stroke) {
+    strokeCtx.save();
+    strokeCtx.strokeStyle = stroke.color;
+    strokeCtx.lineWidth = baseWidth;
+    strokeCtx.lineCap = 'round';
+    const { x1, y1, x2, y2 } = stroke;
+    strokeCtx.beginPath();
+    if (stroke.tool === 'line') {
+      strokeCtx.moveTo(x1, y1);
+      strokeCtx.lineTo(x2, y2);
+    } else if (stroke.tool === 'rect') {
+      strokeCtx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    } else if (stroke.tool === 'ellipse') {
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+      strokeCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    }
+    strokeCtx.stroke();
+    strokeCtx.restore();
+  }
+
+  function drawText(strokeCtx, stroke) {
+    strokeCtx.save();
+    strokeCtx.fillStyle = stroke.color;
+    strokeCtx.font = (18 + baseWidth * 2) + "px 'Source Serif 4', Georgia, serif";
+    strokeCtx.textBaseline = 'top';
+    strokeCtx.fillText(stroke.text, stroke.x, stroke.y);
+    strokeCtx.restore();
+  }
+
+  function redrawAll(side) {
+    const { ctx, canvas, strokes } = side;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of strokes) {
+      if (s.tool === 'line' || s.tool === 'rect' || s.tool === 'ellipse') drawShape(ctx, s);
+      else if (s.tool === 'text') drawText(ctx, s);
+      else drawFreehand(ctx, s);
+    }
+    ctx.restore();
+  }
+
+  function clearLive(side) {
+    const { lctx, live } = side;
+    lctx.save();
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lctx.clearRect(0, 0, live.width, live.height);
+    lctx.restore();
+  }
+
+  function eraseNear(side, x, y) {
+    const threshold = 14;
+    const strokes = side.strokes;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      let hit = false;
+      if (s.points) {
+        hit = s.points.some((p) => dist(p, { x, y }) < threshold);
+      } else if (s.tool === 'text') {
+        hit = Math.abs(s.x - x) < 60 && Math.abs(s.y - y) < 20;
+      } else {
+        const midx = (s.x1 + s.x2) / 2, midy = (s.y1 + s.y2) / 2;
+        hit = dist({ x: midx, y: midy }, { x, y }) < Math.max(Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1)) / 2 + threshold;
+      }
+      if (hit) {
+        strokes.splice(i, 1);
+        side.redoStack = [];
+        redrawAll(side);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function getPos(e, canvasEl) {
+    const rect = canvasEl.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function openTextEditor(side, pos) {
+    if (side.textEditor) return;
+    const input = document.createElement('input');
+    input.className = 'text-input-overlay';
+    input.style.left = pos.x + 'px';
+    input.style.top = pos.y + 'px';
+    input.style.fontSize = (18 + baseWidth * 2) + 'px';
+    input.style.color = currentColor;
+    side.canvasWrap.appendChild(input);
+    input.focus();
+    side.textEditor = input;
+
+    function commit() {
+      const val = input.value.trim();
+      if (val) {
+        side.strokes.push({ tool: 'text', color: currentColor, x: pos.x, y: pos.y, text: val });
+        side.redoStack = [];
+        redrawAll(side);
+      }
+      input.remove();
+      side.textEditor = null;
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { input.value = ''; input.blur(); }
+    });
+  }
+
+  function showEraserCursor(side, pos) {
+    const el = side.eraserCursor;
+    el.style.left = pos.x + 'px';
+    el.style.top = pos.y + 'px';
+    el.style.display = 'block';
+  }
+  function hideEraserCursor(side) {
+    side.eraserCursor.style.display = 'none';
+  }
+
+  function attachDrawing(side) {
+    const { canvas, live, lctx } = side;
+
+    canvas.addEventListener('pointerdown', (e) => {
+      // stop this from being seen as a card-flip drag
+      e.stopPropagation();
+      if (activePointerId !== null) return;
+      if (e.pointerType === 'touch' && hasStylus) return;
+      if (e.pointerType === 'pen') hasStylus = true;
+      activePointerId = e.pointerId;
+
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      flipHint.style.opacity = '0';
+      const pos = getPos(e, canvas);
+      const pressure = e.pressure;
+
+      if (currentTool === 'eraser') {
+        showEraserCursor(side, pos);
+        eraseNear(side, pos.x, pos.y);
+        return;
+      }
+      if (currentTool === 'text') { openTextEditor(side, pos); return; }
+      if (currentTool === 'line' || currentTool === 'rect' || currentTool === 'ellipse') {
+        side.shapeStart = pos;
+        return;
+      }
+      side.activeStroke = {
+        tool: currentTool,
+        color: currentColor,
+        points: [{ x: pos.x, y: pos.y, pressure: pressure || 0.5 }],
+      };
+      clearLive(side);
+      drawFreehand(lctx, side.activeStroke);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      e.stopPropagation();
+      if (e.pointerId !== activePointerId) return;
+      const pos = getPos(e, canvas);
+      if (side.activeStroke) {
+        side.activeStroke.points.push({ x: pos.x, y: pos.y, pressure: e.pressure || 0.5 });
+        clearLive(side);
+        drawFreehand(lctx, side.activeStroke);
+      } else if (side.shapeStart) {
+        clearLive(side);
+        const preview = { tool: currentTool, color: currentColor, x1: side.shapeStart.x, y1: side.shapeStart.y, x2: pos.x, y2: pos.y };
+        drawShape(lctx, preview);
+      } else if (currentTool === 'eraser') {
+        showEraserCursor(side, pos);
+        if (e.buttons === 1) eraseNear(side, pos.x, pos.y);
+      }
+    });
+
+    canvas.addEventListener('pointerenter', (e) => {
+      if (currentTool === 'eraser') showEraserCursor(side, getPos(e, canvas));
+    });
+    canvas.addEventListener('pointerleave', () => hideEraserCursor(side));
+
+    function endStroke(e) {
+      e.stopPropagation();
+      if (e.pointerId !== activePointerId) return;
+      const pos = getPos(e, canvas);
+      if (side.activeStroke) {
+        side.strokes.push(side.activeStroke);
+        side.redoStack = [];
+        side.activeStroke = null;
+        clearLive(side);
+        redrawAll(side);
+      } else if (side.shapeStart) {
+        side.strokes.push({ tool: currentTool, color: currentColor, x1: side.shapeStart.x, y1: side.shapeStart.y, x2: pos.x, y2: pos.y });
+        side.redoStack = [];
+        side.shapeStart = null;
+        clearLive(side);
+        redrawAll(side);
+      }
+      activePointerId = null;
+      if (currentTool !== 'eraser') hideEraserCursor(side);
+    }
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+  }
+  attachDrawing(sides.front);
+  attachDrawing(sides.back);
+
+  function resize() {
+    dpr = Math.max(window.devicePixelRatio || 1, 1);
+    for (const side of [sides.front, sides.back]) {
+      const w = side.canvasWrap.clientWidth;
+      const h = side.canvasWrap.clientHeight;
+      for (const [c, cc] of [[side.canvas, side.ctx], [side.live, side.lctx]]) {
+        c.width = w * dpr;
+        c.height = h * dpr;
+        c.style.width = w + 'px';
+        c.style.height = h + 'px';
+        cc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      redrawAll(side);
+    }
+  }
+  window.addEventListener('resize', resize);
+
+  // ============ toolbar (shared across both sides) ============
+  document.querySelectorAll('.tool').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tool').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTool = btn.dataset.tool;
+      if (currentTool !== 'eraser') {
+        hideEraserCursor(sides.front);
+        hideEraserCursor(sides.back);
+      }
+    });
+  });
+
+  document.querySelectorAll('.swatch').forEach((sw) => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+      sw.classList.add('active');
+      currentColor = sw.dataset.color;
+    });
+  });
+
+  document.getElementById('width-slider').addEventListener('input', (e) => {
+    baseWidth = parseFloat(e.target.value);
+  });
+
+  function currentSideObj() { return sides[currentSide]; }
+
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.strokes.length === 0) return;
+    side.redoStack.push(side.strokes.pop());
+    redrawAll(side);
+  });
+  document.getElementById('redoBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.redoStack.length === 0) return;
+    side.strokes.push(side.redoStack.pop());
+    redrawAll(side);
+  });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.strokes.length === 0) return;
+    if (confirm('Clear the ' + side.name + ' of the card? This cannot be undone.')) {
+      side.strokes = [];
+      side.redoStack = [];
+      redrawAll(side);
+    }
+  });
+  document.getElementById('darkBtn').addEventListener('click', () => {
+    dark = !dark;
+    document.body.classList.toggle('dark', dark);
+  });
+
+  const palmBtn = document.getElementById('palmBtn');
+  palmBtn.addEventListener('click', () => {
+    hasStylus = !hasStylus;
+    palmBtn.style.opacity = hasStylus ? '1' : '0.4';
+    palmBtn.title = hasStylus
+      ? 'Palm rejection: on (finger touches ignored)'
+      : 'Palm rejection: off (finger draws)';
+  });
+  palmBtn.style.opacity = '0.4';
+
+  // ============ 3D flip-card physics ============
+  let angle = 0;          // 0 = resting on front, 180 = resting on back
+  let currentSide = 'front';
+  let isDraggingCard = false;
+  let dragPointerId = null;
+  let dragStartX = 0, dragStartAngle = 0;
+  let lastMoveX = 0, lastMoveT = 0;
+  let velocity = 0;       // degrees per millisecond
+  let springRAF = null;
+
+  function setCardTransform(a) {
+    card.style.transform = 'rotateY(' + a + 'deg)';
+    const sheenOpacity = Math.max(0, Math.sin(a * Math.PI / 180)) * 0.5;
+    sheenFront.style.opacity = sheenOpacity;
+    sheenBack.style.opacity = sheenOpacity;
+  }
+
+  // soft resistance once a drag has swung past a full 180deg turn from
+  // wherever it started, regardless of which absolute angle that is.
+  // This saturates asymptotically (never exceeds 180 + SOFT_MAX) no matter
+  // how far or fast the finger travels, so one swipe can only ever carry
+  // the card through a single half-turn - it can't spin twice.
+  const SOFT_MAX = 34;
+  function rubberBandDelta(delta) {
+    if (delta > 180) {
+      const over = delta - 180;
+      return 180 + SOFT_MAX * (1 - Math.exp(-over / SOFT_MAX));
+    }
+    if (delta < -180) {
+      const over = -delta - 180;
+      return -(180 + SOFT_MAX * (1 - Math.exp(-over / SOFT_MAX)));
+    }
+    return delta;
+  }
+
+  // fold any angle to whichever canonical rest state (0 = front, 180 = back)
+  // it's closest to, however many turns it took to get there
+  function nearestRestAngle(a) {
+    const m = ((Math.round(a / 180) * 180) % 360 + 360) % 360;
+    return m; // always 0 or 180
+  }
+
+  function cancelSpring() {
+    if (springRAF) { cancelAnimationFrame(springRAF); springRAF = null; }
+  }
+
+  function updateSideUI() {
+    sidePill.textContent = currentSide === 'front' ? 'Front' : 'Back';
+    // only the resting side should accept pointer input to draw
+    sides.front.canvas.style.pointerEvents = currentSide === 'front' ? 'auto' : 'none';
+    sides.front.live.style.pointerEvents = 'none';
+    sides.back.canvas.style.pointerEvents = currentSide === 'back' ? 'auto' : 'none';
+    sides.back.live.style.pointerEvents = 'none';
+  }
+
+  function springTo(target, initialVelocityDegPerMs) {
+    cancelSpring();
+    let a = angle;
+    // clamp so an extreme flick can't fling the simulation into an
+    // exaggerated overshoot before it gets pulled back in
+    const maxV = 2600; // degrees per second
+    let v = Math.max(-maxV, Math.min(maxV, initialVelocityDegPerMs * 1000));
+    // overdamped on purpose: a damped spring with damping at or above
+    // critical (2*sqrt(stiffness)) can cross the target at most once and
+    // then glides straight in, so it settles in a single motion no matter
+    // how hard it was flicked, instead of wobbling back and forth.
+    const stiffness = 260;
+    const damping = 2 * Math.sqrt(stiffness) * 1.15;
+    let lastT = performance.now();
+    function step(now) {
+      const dt = Math.min((now - lastT) / 1000, 0.032);
+      lastT = now;
+      const displacement = a - target;
+      const accel = -stiffness * displacement - damping * v;
+      v += accel * dt;
+      a += v * dt;
+      angle = a;
+      setCardTransform(angle);
+      if (Math.abs(displacement) < 0.25 && Math.abs(v) < 6) {
+        angle = target;
+        setCardTransform(angle);
+        currentSide = target === 0 ? 'front' : 'back';
+        updateSideUI();
+        springRAF = null;
+        return;
+      }
+      springRAF = requestAnimationFrame(step);
+    }
+    springRAF = requestAnimationFrame(step);
+  }
+
+  function flipCard() {
+    cancelSpring();
+    const target = currentSide === 'front' ? 180 : 0;
+    springTo(target, 0.35 * (target === 180 ? 1 : -1));
+  }
+  document.getElementById('flipBtn').addEventListener('click', flipCard);
+
+  // dragMode: 'single' (one finger/stylus on the bezel) or 'multi' (two
+  // fingers, anywhere on the card including over the drawing surface)
+  let dragMode = null;
+  let multiDragIds = null;
+  const touchPoints = new Map(); // pointerId -> {x, y}, touch contacts only
+
+  function avgX(ids) {
+    let sum = 0, n = 0;
+    for (const id of ids) {
+      const p = touchPoints.get(id);
+      if (p) { sum += p.x; n++; }
+    }
+    return n ? sum / n : 0;
+  }
+
+  function cancelActiveDraws() {
+    for (const side of [sides.front, sides.back]) {
+      if (side.activeStroke) { side.activeStroke = null; clearLive(side); }
+      if (side.shapeStart) { side.shapeStart = null; clearLive(side); }
+    }
+    activePointerId = null;
+  }
+
+  function beginDrag(mode, startX) {
+    isDraggingCard = true;
+    dragMode = mode;
+    cancelSpring();
+    dragStartX = startX;
+    dragStartAngle = angle;
+    lastMoveX = startX;
+    lastMoveT = performance.now();
+    velocity = 0;
+    flipHint.style.opacity = '0';
+  }
+
+  function updateDrag(currentX) {
+    const now = performance.now();
+    const width = card.clientWidth || 300;
+    const degPerPx = 180 / width;
+    // dragging right-to-left (dx negative) should bring the card's
+    // right-hand side forward, like lifting it off the table by that edge
+    const dx = currentX - dragStartX;
+    const delta = rubberBandDelta(dx * degPerPx);
+    const a = dragStartAngle + delta;
+
+    const dt = now - lastMoveT;
+    if (dt > 0) {
+      const instV = (currentX - lastMoveX) * degPerPx / dt; // deg per ms
+      velocity = velocity * 0.7 + instV * 0.3;
+    }
+    lastMoveX = currentX;
+    lastMoveT = now;
+
+    angle = a;
+    setCardTransform(angle);
+  }
+
+  function endDrag() {
+    isDraggingCard = false;
+    dragMode = null;
+    multiDragIds = null;
+    // project the motion forward a little so a fast flick settles on the
+    // side the finger was heading toward, even if it hadn't crossed halfway.
+    // The projection is clamped to at most one half-turn from the angle the
+    // drag started at, so no matter how hard or fast the swipe was, the
+    // card can only ever land on its current side or the one right next to
+    // it - never skip past into a second rotation.
+    const rawPredicted = angle + velocity * 140;
+    const clampedDelta = Math.max(-180, Math.min(180, rawPredicted - dragStartAngle));
+    const predicted = dragStartAngle + clampedDelta;
+    const target = nearestRestAngle(predicted);
+    springTo(target, velocity);
+  }
+
+  // ---- single finger / stylus / mouse drag, started from the bezel ----
+  // (events from the canvases call stopPropagation before reaching here)
+  card.addEventListener('pointerdown', (e) => {
+    if (isDraggingCard) return;
+    dragPointerId = e.pointerId;
+    try { card.setPointerCapture(e.pointerId); } catch (err) {}
+    beginDrag('single', e.clientX);
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (!isDraggingCard || dragMode !== 'single' || e.pointerId !== dragPointerId) return;
+    updateDrag(e.clientX);
+  });
+
+  function endSingleDrag(e) {
+    if (!isDraggingCard || dragMode !== 'single' || e.pointerId !== dragPointerId) return;
+    try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+    endDrag();
+  }
+  card.addEventListener('pointerup', endSingleDrag);
+  card.addEventListener('pointercancel', endSingleDrag);
+
+  // ---- two-finger swipe, works anywhere on the card including the
+  // drawing surface itself, so it never fights with pen/finger strokes.
+  // Listened for in the capture phase so it still sees every touch even
+  // though the canvases stop the event from bubbling back up. ----
+  card.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPoints.size === 2 && !isDraggingCard) {
+      e.stopPropagation(); // don't let this second finger start a stroke
+      cancelActiveDraws();  // and undo whatever the first finger started
+      multiDragIds = Array.from(touchPoints.keys());
+      beginDrag('multi', avgX(multiDragIds));
+    }
+  }, true);
+
+  card.addEventListener('pointermove', (e) => {
+    if (!touchPoints.has(e.pointerId)) return;
+    touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (isDraggingCard && dragMode === 'multi' && multiDragIds && multiDragIds.includes(e.pointerId)) {
+      e.stopPropagation();
+      updateDrag(avgX(multiDragIds));
+    }
+  }, true);
+
+  function endMultiTouch(e) {
+    if (!touchPoints.has(e.pointerId)) return;
+    const wasDragging = isDraggingCard && dragMode === 'multi' && multiDragIds && multiDragIds.includes(e.pointerId);
+    touchPoints.delete(e.pointerId);
+    if (wasDragging) {
+      e.stopPropagation();
+      endDrag();
+    }
+  }
+  card.addEventListener('pointerup', endMultiTouch, true);
+  card.addEventListener('pointercancel', endMultiTouch, true);
+
+  ['flipHandleFront', 'flipHandleBack'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('click', (e) => { e.stopPropagation(); flipCard(); });
+  });
+
+  updateSideUI();
+  setCardTransform(0);
+
+  resize();
+  window.addEventListener('load', resize);
+  setTimeout(resize, 50);
+})();
+</script>
+</body>
+</html>
