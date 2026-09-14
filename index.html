@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F3EFE6">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Flashcards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F3EFE6;
+    --paper-dark: #1B1A17;
+    --ink: #262420;
+    --ink-dark: #EDE9E0;
+    --line: #DAD3C2;
+    --line-dark: #38352E;
+    --accent: #3A6EA5;
+    --panel: #FFFFFF;
+    --panel-dark: #242220;
+    --muted: #8B8371;
+    --bezel: #FFFFFF;
+    --bezel-dark: #000000;
+    --card-border: #262420;
+    --card-border-dark: rgba(237, 233, 224, 0.4);
+    --deck-tile: #FFFFFF;
+    --deck-tile-dark: #242220;
+    --font-main: 'Google Sans', 'Product Sans', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: var(--font-main);
+    background: var(--paper);
+    color: var(--ink);
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; }
+  body.dark { background: var(--paper-dark); color: var(--ink-dark); }
+
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .screen.hidden { display: none; }
+
+  /* ---------- shared topbar ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  body.dark .topbar { border-color: var(--line-dark); }
+  .topbar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  .topbar-title { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-title-group { display: flex; flex-direction: column; min-width: 0; justify-content: center; }
+  .topbar-subtitle { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .iconbtn {
+    border: none; background: transparent; color: inherit;
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; flex-shrink: 0;
+  }
+  .iconbtn:active { background: rgba(0,0,0,0.06); }
+  body.dark .iconbtn:active { background: rgba(255,255,255,0.08); }
+
+  /* ---------- home screen ---------- */
+  #deckGrid {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 14px; align-content: start;
+  }
+  #emptyState {
+    flex: 1; display: none; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 14px; text-align: center; padding: 40px;
+  }
+  .deck-tile {
+    position: relative; background: var(--deck-tile); border-radius: 16px;
+    padding: 16px 14px; min-height: 104px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    box-shadow: 0 2px 10px rgba(30,25,15,0.10);
+    cursor: pointer;
+  }
+  body.dark .deck-tile { background: var(--deck-tile-dark); box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+  .deck-tile:active { transform: scale(0.98); }
+  .deck-tile-name { font-size: 15px; font-weight: 600; word-break: break-word; padding-right: 20px; }
+  .deck-tile-count { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .deck-kebab {
+    position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 17px;
+  }
+  .deck-kebab:active { background: rgba(0,0,0,0.06); }
+  body.dark .deck-kebab:active { background: rgba(255,255,255,0.08); }
+
+  #fab {
+    position: fixed; right: 20px; bottom: 24px; width: 56px; height: 56px;
+    border-radius: 50%; background: var(--accent); color: #fff; border: none;
+    font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.28); cursor: pointer; z-index: 20;
+  }
+  #fab:active { transform: scale(0.95); }
+
+  /* ---------- deck kebab popover ---------- */
+  #deckMenu {
+    position: fixed; background: var(--panel); border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.22); overflow: hidden; z-index: 60;
+    display: none; min-width: 140px;
+  }
+  body.dark #deckMenu { background: var(--panel-dark); }
+  #deckMenu.open { display: block; }
+  #deckMenu button {
+    display: block; width: 100%; text-align: left; padding: 12px 16px;
+    background: none; border: none; color: inherit; font-size: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  #deckMenu button:active { background: rgba(0,0,0,0.06); }
+  body.dark #deckMenu button:active { background: rgba(255,255,255,0.08); }
+  #deckMenuDelete { color: #C0392B; }
+
+  /* ---------- name modal ---------- */
+  #nameModalOverlay {
+    position: fixed; inset: 0; background: rgba(20,17,10,0.4);
+    display: none; align-items: center; justify-content: center; z-index: 70;
+  }
+  #nameModalOverlay.open { display: flex; }
+  #nameModal { background: var(--panel); color: var(--ink); border-radius: 16px; padding: 18px; width: 85%; max-width: 320px; }
+  body.dark #nameModal { background: var(--panel-dark); color: var(--ink-dark); }
+  #nameModal h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  #nameModalInput {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    font-size: 15px; font-family: inherit; background: var(--paper); color: inherit;
+  }
+  body.dark #nameModalInput { border-color: var(--line-dark); background: var(--paper-dark); }
+  #nameModalActions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 14px; }
+  #nameModalActions button {
+    border: none; background: transparent; color: var(--accent); font-size: 14px;
+    font-weight: 600; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  #nameModalActions button:active { background: rgba(0,0,0,0.06); }
+  #nameModalCancel { color: var(--muted); }
+
+  /* ---------- flashcard stage ---------- */
+  #stage {
+    position: relative; flex: 1; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    padding: 18px; background: var(--paper);
+    perspective: 1600px;
+  }
+  body.dark #stage { background: var(--paper-dark); }
+
+  #card {
+    position: relative;
+    width: min(100%, 640px);
+    aspect-ratio: 3 / 2;
+    max-height: 100%;
+    transform-style: preserve-3d;
+    touch-action: none;
+    will-change: transform;
+    z-index: 2;
+  }
+
+  .stack-layer {
+    position: absolute; left: 50%; top: 50%;
+    width: min(100%, 640px); aspect-ratio: 3 / 2;
+    background: var(--bezel);
+    border-radius: 18px;
+    border: 1.5px solid var(--card-border);
+    box-shadow: 0 10px 24px rgba(30,25,15,0.16);
+    display: none;
+    pointer-events: none;
+  }
+  body.dark .stack-layer { background: var(--bezel-dark); border-color: var(--card-border-dark); box-shadow: 0 10px 24px rgba(0,0,0,0.4); }
+  .stack-layer-1 { transform: translate(-50%, -50%) translateY(10px) scale(0.975); opacity: 0.9; z-index: 1; }
+  .stack-layer-2 { transform: translate(-50%, -50%) translateY(19px) scale(0.955); opacity: 0.75; z-index: 0; }
+  #stage.has-deck-1 .stack-layer-1 { display: block; }
+  #stage.has-deck-2 .stack-layer-1, #stage.has-deck-2 .stack-layer-2 { display: block; }
+
+  .face {
+    position: absolute; inset: 0;
+    background: var(--bezel);
+    border-radius: 18px;
+    border: 1.5px solid var(--card-border);
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    box-shadow: 0 14px 34px rgba(30,25,15,0.22), 0 2px 6px rgba(30,25,15,0.12);
+    display: flex; flex-direction: column;
+    padding: 13px;
+    cursor: grab;
+  }
+  body.dark .face { background: var(--bezel-dark); border-color: var(--card-border-dark); box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35); }
+  .face.back { transform: rotateY(180deg); }
+  .face:active { cursor: grabbing; }
+
+  .face-label {
+    position: absolute; top: 10px; left: 16px;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    pointer-events: none; z-index: 3;
+  }
+
+  .sheen {
+    position: absolute; inset: 0; border-radius: 18px;
+    background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.55) 50%, transparent 65%);
+    mix-blend-mode: overlay; opacity: 0; pointer-events: none; z-index: 4;
+  }
+
+  #canvas-wrap-front, #canvas-wrap-back {
+    position: relative; flex: 1; overflow: hidden;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+    margin-top: 18px;
+  }
+  body.dark #canvas-wrap-front, body.dark #canvas-wrap-back { background: var(--paper-dark); border-color: var(--line-dark); }
+  canvas { position: absolute; top: 0; left: 0; touch-action: none; border-radius: 10px; }
+  #liveFront, #liveBack { pointer-events: none; }
+
+  #dock {
+    display: flex; align-items: center; gap: 2px; padding: 8px 10px;
+    border-top: 1px solid var(--line); overflow-x: auto;
+    background: var(--paper); flex-shrink: 0;
+  }
+  body.dark #dock { border-color: var(--line-dark); background: var(--paper-dark); }
+
+  .tool {
+    border: 1px solid transparent; background: transparent; color: inherit;
+    width: 42px; height: 42px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 17px; cursor: pointer;
+  }
+  .tool.active { background: var(--panel); border-color: var(--line); }
+  body.dark .tool.active { background: var(--panel-dark); border-color: var(--line-dark); }
+
+  .divider { width: 1px; height: 26px; background: var(--line); margin: 0 6px; flex-shrink: 0; }
+  body.dark .divider { background: var(--line-dark); }
+
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+    border: 2px solid var(--line); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  body.dark .swatch { border-color: var(--line-dark); }
+  .swatch.active { border-color: var(--accent); box-shadow: none; }
+
+  .eraser-cursor {
+    position: absolute; z-index: 8; border-radius: 50%;
+    border: 1.5px solid rgba(120,115,100,0.55);
+    background: rgba(140,135,120,0.18);
+    pointer-events: none; transform: translate(-50%, -50%);
+    display: none;
+  }
+  body.dark .eraser-cursor { border-color: rgba(220,215,200,0.55); background: rgba(220,215,200,0.16); }
+
+  #width-slider { width: 70px; flex-shrink: 0; }
+
+  .text-input-overlay {
+    position: absolute; background: transparent; border: 1px dashed var(--accent);
+    outline: none; font-family: var(--font-main);
+    padding: 2px 4px; color: inherit; min-width: 40px; z-index: 7;
+  }
+
+  /* ---------- reading mode ---------- */
+  #editorScreen.reading-mode .topbar,
+  #editorScreen.reading-mode #dock {
+    display: none;
+  }
+  #editorScreen.reading-mode #stage {
+    padding: 0;
+  }
+  #readingCloseBtn {
+    display: none;
+    position: absolute; top: 14px; right: 14px; z-index: 30;
+    width: 40px; height: 40px; border-radius: 50%;
+    align-items: center; justify-content: center;
+    background: var(--panel); color: var(--ink); border: none;
+    font-size: 18px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  body.dark #readingCloseBtn { background: var(--panel-dark); color: var(--ink-dark); }
+  #editorScreen.reading-mode #readingCloseBtn { display: flex; }
+
+  /* ---------- hamburger menu drawer ---------- */
+  #menuOverlay {
+    position: fixed; inset: 0; background: rgba(20,17,10,0.35);
+    z-index: 80; display: none;
+  }
+  #menuOverlay.open { display: block; }
+  #menuPanel {
+    position: absolute; top: 0; left: 0; bottom: 0; width: min(78vw, 300px);
+    background: var(--panel); color: var(--ink);
+    box-shadow: 2px 0 24px rgba(0,0,0,0.25);
+    overflow-y: auto; padding: 10px 6px 20px;
+  }
+  body.dark #menuPanel { background: var(--panel-dark); color: var(--ink-dark); }
+  .menu-top { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 4px; }
+  .menu-app-name { font-weight: 600; font-size: 15px; }
+  .menu-header {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); padding: 12px 14px 4px;
+  }
+  .menu-row {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    background: none; border: none; color: inherit; font-family: inherit; font-size: 15px;
+    padding: 13px 14px; border-radius: 10px; cursor: pointer;
+  }
+  .menu-row:active { background: rgba(0,0,0,0.06); }
+  body.dark .menu-row:active { background: rgba(255,255,255,0.08); }
+  .menu-row-icon { font-size: 16px; width: 18px; text-align: center; flex-shrink: 0; }
+  .menu-subview.hidden { display: none; }
+  .menu-subheader {
+    display: flex; align-items: center; gap: 6px; padding: 4px 6px 10px; font-weight: 600; font-size: 15px;
+  }
+
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+  }
+  body.dark .settings-row { border-color: var(--line-dark); }
+  .settings-row:last-of-type { border-bottom: none; }
+  .settings-row-stack { flex-direction: column; align-items: stretch; gap: 6px; }
+  .settings-row-top { display: flex; align-items: center; justify-content: space-between; }
+  .settings-label { font-size: 14px; }
+  .settings-value { font-size: 13px; color: var(--muted); min-width: 20px; text-align: right; }
+  #defaultThicknessSlider { width: 100%; }
+
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider-toggle {
+    position: absolute; cursor: pointer; inset: 0; background: var(--line);
+    border-radius: 24px; transition: background 0.15s;
+  }
+  body.dark .slider-toggle { background: var(--line-dark); }
+  .slider-toggle::before {
+    content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s;
+  }
+  .switch input:checked + .slider-toggle { background: var(--accent); }
+  .switch input:checked + .slider-toggle::before { transform: translateX(18px); }
+
+  .settings-instructions {
+    margin: 4px 0 0; padding: 0 14px 0 30px; font-size: 13.5px; line-height: 1.6;
+    color: var(--ink);
+  }
+  body.dark .settings-instructions { color: var(--ink-dark); }
+  .settings-instructions li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= HOME SCREEN ================= -->
+  <div class="screen" id="homeScreen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="iconbtn" id="hamburgerBtn" title="Menu">&#9776;</button>
+        <div class="topbar-title">Flashcards</div>
+      </div>
+      <div class="topbar-actions"></div>
+    </div>
+    <div id="deckGrid"></div>
+    <div id="emptyState">Tap the + button to create your first deck.</div>
+    <button id="fab" title="New deck">&#43;</button>
+  </div>
+
+  <!-- ================= EDITOR SCREEN ================= -->
+  <div class="screen hidden" id="editorScreen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="iconbtn" id="backBtn" title="Back to decks">&#8592;</button>
+        <div class="topbar-title-group">
+          <div class="topbar-title" id="deckNameEl">Deck</div>
+          <div class="topbar-subtitle" id="cardStatusEl">Card 1 of 1 &middot; Front</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="iconbtn" id="flipBtn" title="Flip card">&#8635;</button>
+        <button class="iconbtn" id="addCardBtn" title="Add a new card to the deck">&#43;</button>
+        <button class="iconbtn" id="undoBtn" title="Undo">&#8630;</button>
+        <button class="iconbtn" id="redoBtn" title="Redo">&#8631;</button>
+        <button class="iconbtn" id="clearBtn" title="Clear this side">&#9166;</button>
+        <button class="iconbtn" id="editorMenuBtn" title="Menu">&#9776;</button>
+        <button class="iconbtn" id="readingModeBtn" title="Reading mode">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 4H4v5" />
+            <path d="M15 4h5v5" />
+            <path d="M9 20H4v-5" />
+            <path d="M15 20h5v-5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <button id="readingCloseBtn" title="Exit reading mode">&#10005;</button>
+
+    <div id="stage">
+      <div class="stack-layer stack-layer-2"></div>
+      <div class="stack-layer stack-layer-1"></div>
+      <div id="card">
+        <div class="face front" id="faceFront">
+          <div class="face-label" id="faceLabelFront">1 (Front)</div>
+          <div class="sheen" id="sheenFront"></div>
+          <div id="canvas-wrap-front">
+            <canvas id="canvasFront"></canvas>
+            <canvas id="liveFront"></canvas>
+            <div class="eraser-cursor" id="eraserCursorFront"></div>
+          </div>
+        </div>
+        <div class="face back" id="faceBack">
+          <div class="face-label" id="faceLabelBack">1 (Back)</div>
+          <div class="sheen" id="sheenBack"></div>
+          <div id="canvas-wrap-back">
+            <canvas id="canvasBack"></canvas>
+            <canvas id="liveBack"></canvas>
+            <div class="eraser-cursor" id="eraserCursorBack"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dock">
+      <button class="tool" data-tool="pen" title="Pen">&#9998;</button>
+      <button class="tool" data-tool="highlighter" title="Highlighter">&#9646;</button>
+      <button class="tool" data-tool="neon" title="Neon pen">&#10022;</button>
+      <button class="tool active" data-tool="calligraphy" title="Calligraphy pen">&#10002;</button>
+      <button class="tool" data-tool="eraser" title="Eraser">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.5 12.5 8.7 22.3H4.2a1.4 1.4 0 0 1-1-.4l-2-2a1.4 1.4 0 0 1 0-2L14.9 4.2a1.4 1.4 0 0 1 2 0l4.9 4.9a1.4 1.4 0 0 1 0 2l-3.3 3.3Z" />
+          <path d="M13.4 6.7 19.8 13" />
+          <path d="M8.7 22.3H21" />
+        </svg>
+      </button>
+      <div class="divider"></div>
+      <button class="tool" data-tool="line" title="Line">&#9585;</button>
+      <button class="tool" data-tool="rect" title="Rectangle">&#9645;</button>
+      <button class="tool" data-tool="ellipse" title="Ellipse">&#9711;</button>
+      <button class="tool" data-tool="text" title="Text">T</button>
+      <div class="divider"></div>
+      <span class="swatch" data-color="#FFFFFF" style="background:#FFFFFF"></span>
+      <span class="swatch active" data-color="#000000" style="background:#000000"></span>
+      <span class="swatch" data-color="#2563EB" style="background:#2563EB"></span>
+      <span class="swatch" data-color="#DC2626" style="background:#DC2626"></span>
+      <div class="divider"></div>
+      <input type="range" id="width-slider" min="1" max="24" value="1" title="Base width" />
+    </div>
+  </div>
+
+  <!-- ================= HAMBURGER MENU ================= -->
+  <div id="menuOverlay">
+    <div id="menuPanel">
+      <div id="menuListView">
+        <div class="menu-top"><span class="menu-app-name">Flashcards</span></div>
+        <div class="menu-header">Menu</div>
+        <button class="menu-row" id="menuSettingsBtn"><span class="menu-row-icon">&#9881;</span> Settings</button>
+        <button class="menu-row" id="menuInstructionsBtn"><span class="menu-row-icon">&#128214;</span> Instructions</button>
+      </div>
+
+      <div class="menu-subview hidden" id="menuSettingsView">
+        <div class="menu-subheader">
+          <button class="iconbtn" id="menuSettingsBack">&#8592;</button>
+          <span>Settings</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Dark mode</span>
+          <label class="switch">
+            <input type="checkbox" id="darkToggle" />
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Palm rejection</span>
+          <label class="switch">
+            <input type="checkbox" id="palmToggle" />
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div class="settings-row settings-row-stack">
+          <div class="settings-row-top">
+            <span class="settings-label">Default pen thickness</span>
+            <span class="settings-value" id="defaultThicknessValue">4</span>
+          </div>
+          <input type="range" id="defaultThicknessSlider" min="1" max="24" value="1" />
+        </div>
+      </div>
+
+      <div class="menu-subview hidden" id="menuInstructionsView">
+        <div class="menu-subheader">
+          <button class="iconbtn" id="menuInstructionsBack">&#8592;</button>
+          <span>Instructions</span>
+        </div>
+        <ul class="settings-instructions">
+          <li>Tap a deck to open it, or the + button on the home screen to create a new one.</li>
+          <li>Tap a deck's &#8942; menu to rename or delete it.</li>
+          <li>Draw with a finger, stylus, or mouse directly on the card.</li>
+          <li>Swipe with two fingers anywhere on the card to flip it over.</li>
+          <li>Drag from the card's edge with one finger to flip it too.</li>
+          <li>Swipe up from the card's edge to cycle to the next card in the deck.</li>
+          <li>Tap &#8635; to flip instantly, or + to add a new card above this one.</li>
+          <li>Use undo, redo, and clear to manage strokes on the current side.</li>
+          <li>Tap the reading-mode icon to hide every control and enlarge the card to fill the screen; tap &#215; to exit.</li>
+          <li>Turn on palm rejection in Settings to ignore finger touches once a stylus is used.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DECK KEBAB POPOVER ================= -->
+  <div id="deckMenu">
+    <button id="deckMenuRename">Rename</button>
+    <button id="deckMenuDelete">Delete</button>
+  </div>
+
+  <!-- ================= NAME MODAL ================= -->
+  <div id="nameModalOverlay">
+    <div id="nameModal">
+      <h3 id="nameModalTitle">New deck</h3>
+      <input type="text" id="nameModalInput" maxlength="60" />
+      <div id="nameModalActions">
+        <button id="nameModalCancel">Cancel</button>
+        <button id="nameModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+(function () {
+  const STORAGE_KEY = 'xnotes-flashcards-state';
+
+  // ============ persistence ============
+  function normalizeDeck(d) {
+    return {
+      id: d.id || ('d' + Date.now() + Math.random().toString(36).slice(2, 6)),
+      name: d.name || 'Untitled deck',
+      cardCounter: d.cardCounter || 1,
+      currentCardNumber: d.currentCardNumber || 1,
+      frontStrokes: Array.isArray(d.frontStrokes) ? d.frontStrokes : [],
+      backStrokes: Array.isArray(d.backStrokes) ? d.backStrokes : [],
+      stack: Array.isArray(d.stack) ? d.stack : [],
+    };
+  }
+
+  function loadState() {
+    const defaults = { decks: [], settings: { dark: false, defaultWidth: 1, palmRejection: false, _minWidthMigrated: true } };
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
+    if (!saved || typeof saved !== 'object') return defaults;
+    const settings = Object.assign({}, defaults.settings, saved.settings || {});
+    if (!settings._minWidthMigrated) {
+      // one-time reset: earlier versions defaulted to a thicker pen —
+      // bring existing saved state in line with the new minimum default
+      settings.defaultWidth = 1;
+      settings._minWidthMigrated = true;
+    }
+    return {
+      decks: Array.isArray(saved.decks) ? saved.decks.map(normalizeDeck) : [],
+      settings,
+    };
+  }
+
+  const state = loadState();
+  let activeDeck = null; // the deck object (a reference into state.decks) currently open in the editor
+
+  function syncActiveDeck() {
+    if (!activeDeck) return;
+    activeDeck.frontStrokes = sides.front.strokes;
+    activeDeck.backStrokes = sides.back.strokes;
+    activeDeck.cardCounter = cardCounter;
+    activeDeck.currentCardNumber = currentCardNumber;
+    // stack is the same array reference as activeDeck.stack, always current
+  }
+
+  function persist() {
+    syncActiveDeck();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  window.addEventListener('beforeunload', persist);
+
+  // ============ screens ============
+  const homeScreen = document.getElementById('homeScreen');
+  const editorScreen = document.getElementById('editorScreen');
+  function showScreen(name) {
+    homeScreen.classList.toggle('hidden', name !== 'home');
+    editorScreen.classList.toggle('hidden', name !== 'editor');
+    if (name === 'editor') {
+      // the editor (and its canvases) were just unhidden — display:none
+      // means clientWidth/clientHeight were 0 until now, so the canvases
+      // must be (re)sized only after layout has actually happened.
+      requestAnimationFrame(() => requestAnimationFrame(resize));
+    }
+  }
+
+  const card = document.getElementById('card');
+  const sheenFront = document.getElementById('sheenFront');
+  const sheenBack = document.getElementById('sheenBack');
+  const deckNameEl = document.getElementById('deckNameEl');
+  const cardStatusEl = document.getElementById('cardStatusEl');
+
+  let dpr = Math.max(window.devicePixelRatio || 1, 1);
+  let currentTool = 'calligraphy';
+  let currentColor = '#000000';
+  let baseWidth = state.settings.defaultWidth;
+  let dark = state.settings.dark;
+  let hasStylus = state.settings.palmRejection;
+  let activePointerId = null; // only one drawing contact acts at a time, globally
+
+  // ============ per-side drawing state ============
+  const ERASER_RADIUS = 14; // keep in sync with the hit threshold in eraseNear
+
+  function makeSide(name, canvasWrapId, canvasId, liveId, eraserCursorId) {
+    const canvasWrap = document.getElementById(canvasWrapId);
+    const canvas = document.getElementById(canvasId);
+    const live = document.getElementById(liveId);
+    const eraserCursor = document.getElementById(eraserCursorId);
+    eraserCursor.style.width = (ERASER_RADIUS * 2) + 'px';
+    eraserCursor.style.height = (ERASER_RADIUS * 2) + 'px';
+    return {
+      name, canvasWrap, canvas, live, eraserCursor,
+      ctx: canvas.getContext('2d'),
+      lctx: live.getContext('2d'),
+      strokes: [],
+      redoStack: [],
+      activeStroke: null,
+      shapeStart: null,
+      textEditor: null,
+    };
+  }
+  const sides = {
+    front: makeSide('front', 'canvas-wrap-front', 'canvasFront', 'liveFront', 'eraserCursorFront'),
+    back: makeSide('back', 'canvas-wrap-back', 'canvasBack', 'liveBack', 'eraserCursorBack'),
+  };
+
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  const NIB_ANGLE = Math.PI / 4;
+
+  function widthForTool(tool, pressure, angle) {
+    const p = pressure && pressure > 0 ? pressure : 0.5;
+    if (tool === 'highlighter') return baseWidth * 3.2;
+    if (tool === 'neon') return baseWidth * 1.6 * (0.6 + p * 0.8);
+    if (tool === 'calligraphy') {
+      const a = angle || 0;
+      const raw = Math.abs(Math.sin(a - NIB_ANGLE));
+      const s = Math.pow(raw, 0.7);
+      const nibWidth = baseWidth * 2.8 * (0.06 + 0.94 * s);
+      return nibWidth * (0.85 + p * 0.3);
+    }
+    return baseWidth * (0.35 + p * 1.5);
+  }
+
+  function smoothPoints(pts) {
+    if (pts.length < 3) return pts.slice();
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+      out.push({
+        x: (p0.x + p1.x * 2 + p2.x) / 4,
+        y: (p0.y + p1.y * 2 + p2.y) / 4,
+        pressure: (p0.pressure + p1.pressure * 2 + p2.pressure) / 4,
+      });
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function densify(pts) {
+    if (pts.length < 2) return pts.slice();
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const segLen = dist(p1, p2);
+      const steps = Math.max(2, Math.min(14, Math.round(segLen / 2.2)));
+      for (let s = 0; s < steps; s++) {
+        const t = s / steps;
+        const t2 = t * t, t3 = t2 * t;
+        const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 + (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3);
+        const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 + (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3);
+        const pressure = p1.pressure + (p2.pressure - p1.pressure) * t;
+        out.push({ x, y, pressure });
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+
+  function ribbonPath(strokeCtx, points, tool) {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      const r = widthForTool(tool, points[0].pressure, 0) / 2;
+      strokeCtx.beginPath();
+      strokeCtx.arc(points[0].x, points[0].y, r, 0, Math.PI * 2);
+      strokeCtx.fill();
+      return;
+    }
+    const left = [];
+    const right = [];
+    const widths = [];
+    for (let i = 0; i < points.length; i++) {
+      const prev = points[Math.max(0, i - 1)];
+      const next = points[Math.min(points.length - 1, i + 1)];
+      const rawDx = next.x - prev.x, rawDy = next.y - prev.y;
+      const angle = Math.atan2(rawDy, rawDx);
+      const len = Math.hypot(rawDx, rawDy) || 1;
+      const dx = rawDx / len, dy = rawDy / len;
+      const nx = -dy, ny = dx;
+      const w = widthForTool(tool, points[i].pressure, angle) / 2;
+      widths.push(w);
+      left.push({ x: points[i].x + nx * w, y: points[i].y + ny * w });
+      right.push({ x: points[i].x - nx * w, y: points[i].y - ny * w });
+    }
+    strokeCtx.beginPath();
+    strokeCtx.moveTo(left[0].x, left[0].y);
+    for (let i = 1; i < left.length; i++) strokeCtx.lineTo(left[i].x, left[i].y);
+    const endW = widths[widths.length - 1];
+    strokeCtx.arc(points[points.length - 1].x, points[points.length - 1].y, endW, Math.atan2(left[left.length-1].y - points[points.length-1].y, left[left.length-1].x - points[points.length-1].x), Math.atan2(right[right.length-1].y - points[points.length-1].y, right[right.length-1].x - points[points.length-1].x));
+    for (let i = right.length - 1; i >= 0; i--) strokeCtx.lineTo(right[i].x, right[i].y);
+    const startW = widths[0];
+    strokeCtx.arc(points[0].x, points[0].y, startW, Math.atan2(right[0].y - points[0].y, right[0].x - points[0].x), Math.atan2(left[0].y - points[0].y, left[0].x - points[0].x));
+    strokeCtx.closePath();
+    strokeCtx.fill();
+  }
+
+  function ribbonPathScaled(strokeCtx, points, scale) {
+    const scaled = points.map(p => ({ x: p.x, y: p.y, pressure: p.pressure * scale }));
+    ribbonPath(strokeCtx, scaled, 'neon');
+  }
+
+  function drawFreehand(strokeCtx, stroke) {
+    const raw = stroke.points;
+    if (raw.length === 0) return;
+    const pts = densify(smoothPoints(raw));
+    strokeCtx.save();
+    if (stroke.tool === 'highlighter') {
+      strokeCtx.globalCompositeOperation = 'multiply';
+      strokeCtx.globalAlpha = 0.75;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+    } else if (stroke.tool === 'neon') {
+      strokeCtx.globalCompositeOperation = 'lighter';
+      strokeCtx.shadowBlur = baseWidth * 3;
+      strokeCtx.shadowColor = stroke.color;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+      strokeCtx.shadowBlur = 0;
+      strokeCtx.globalAlpha = 0.9;
+      strokeCtx.fillStyle = '#ffffff';
+      const core = pts.map(p => ({ ...p, pressure: p.pressure }));
+      strokeCtx.save();
+      strokeCtx.globalCompositeOperation = 'lighter';
+      ribbonPathScaled(strokeCtx, core, 0.35);
+      strokeCtx.restore();
+    } else {
+      strokeCtx.globalCompositeOperation = 'source-over';
+      strokeCtx.globalAlpha = 1;
+      strokeCtx.fillStyle = stroke.color;
+      ribbonPath(strokeCtx, pts, stroke.tool);
+    }
+    strokeCtx.restore();
+  }
+
+  function drawShape(strokeCtx, stroke) {
+    strokeCtx.save();
+    strokeCtx.strokeStyle = stroke.color;
+    strokeCtx.lineWidth = baseWidth;
+    strokeCtx.lineCap = 'round';
+    const { x1, y1, x2, y2 } = stroke;
+    strokeCtx.beginPath();
+    if (stroke.tool === 'line') {
+      strokeCtx.moveTo(x1, y1);
+      strokeCtx.lineTo(x2, y2);
+    } else if (stroke.tool === 'rect') {
+      strokeCtx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+    } else if (stroke.tool === 'ellipse') {
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+      strokeCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    }
+    strokeCtx.stroke();
+    strokeCtx.restore();
+  }
+
+  function drawText(strokeCtx, stroke) {
+    strokeCtx.save();
+    strokeCtx.fillStyle = stroke.color;
+    strokeCtx.font = (18 + baseWidth * 2) + "px 'Google Sans','Product Sans',Roboto,Arial,sans-serif";
+    strokeCtx.textBaseline = 'top';
+    strokeCtx.fillText(stroke.text, stroke.x, stroke.y);
+    strokeCtx.restore();
+  }
+
+  function redrawAll(side) {
+    const { ctx, canvas, strokes } = side;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of strokes) {
+      if (s.tool === 'line' || s.tool === 'rect' || s.tool === 'ellipse') drawShape(ctx, s);
+      else if (s.tool === 'text') drawText(ctx, s);
+      else drawFreehand(ctx, s);
+    }
+    ctx.restore();
+  }
+
+  function clearLive(side) {
+    const { lctx, live } = side;
+    lctx.save();
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lctx.clearRect(0, 0, live.width, live.height);
+    lctx.restore();
+  }
+
+  function eraseNear(side, x, y) {
+    const threshold = 14;
+    const strokes = side.strokes;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      let hit = false;
+      if (s.points) {
+        hit = s.points.some((p) => dist(p, { x, y }) < threshold);
+      } else if (s.tool === 'text') {
+        hit = Math.abs(s.x - x) < 60 && Math.abs(s.y - y) < 20;
+      } else {
+        const midx = (s.x1 + s.x2) / 2, midy = (s.y1 + s.y2) / 2;
+        hit = dist({ x: midx, y: midy }, { x, y }) < Math.max(Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1)) / 2 + threshold;
+      }
+      if (hit) {
+        strokes.splice(i, 1);
+        side.redoStack = [];
+        redrawAll(side);
+        persist();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function getPos(e, canvasEl) {
+    const rect = canvasEl.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function openTextEditor(side, pos) {
+    if (side.textEditor) return;
+    const input = document.createElement('input');
+    input.className = 'text-input-overlay';
+    input.style.left = pos.x + 'px';
+    input.style.top = pos.y + 'px';
+    input.style.fontSize = (18 + baseWidth * 2) + 'px';
+    input.style.color = currentColor;
+    side.canvasWrap.appendChild(input);
+    input.focus();
+    side.textEditor = input;
+
+    function commit() {
+      const val = input.value.trim();
+      if (val) {
+        side.strokes.push({ tool: 'text', color: currentColor, x: pos.x, y: pos.y, text: val });
+        side.redoStack = [];
+        redrawAll(side);
+        persist();
+      }
+      input.remove();
+      side.textEditor = null;
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { input.value = ''; input.blur(); }
+    });
+  }
+
+  function showEraserCursor(side, pos) {
+    const el = side.eraserCursor;
+    el.style.left = pos.x + 'px';
+    el.style.top = pos.y + 'px';
+    el.style.display = 'block';
+  }
+  function hideEraserCursor(side) {
+    side.eraserCursor.style.display = 'none';
+  }
+
+  function attachDrawing(side) {
+    const { canvas, live, lctx } = side;
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (activePointerId !== null) return;
+      if (e.pointerType === 'touch' && hasStylus) return;
+      if (e.pointerType === 'pen' && !hasStylus) {
+        hasStylus = true;
+        state.settings.palmRejection = true;
+        palmToggle.checked = true;
+        persist();
+      }
+      activePointerId = e.pointerId;
+
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      const pos = getPos(e, canvas);
+      const pressure = e.pressure;
+
+      if (currentTool === 'eraser') {
+        showEraserCursor(side, pos);
+        eraseNear(side, pos.x, pos.y);
+        return;
+      }
+      if (currentTool === 'text') { openTextEditor(side, pos); return; }
+      if (currentTool === 'line' || currentTool === 'rect' || currentTool === 'ellipse') {
+        side.shapeStart = pos;
+        return;
+      }
+      side.activeStroke = {
+        tool: currentTool,
+        color: currentColor,
+        points: [{ x: pos.x, y: pos.y, pressure: pressure || 0.5 }],
+      };
+      clearLive(side);
+      drawFreehand(lctx, side.activeStroke);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      e.stopPropagation();
+      if (e.pointerId !== activePointerId) return;
+      const pos = getPos(e, canvas);
+      if (side.activeStroke) {
+        side.activeStroke.points.push({ x: pos.x, y: pos.y, pressure: e.pressure || 0.5 });
+        clearLive(side);
+        drawFreehand(lctx, side.activeStroke);
+      } else if (side.shapeStart) {
+        clearLive(side);
+        const preview = { tool: currentTool, color: currentColor, x1: side.shapeStart.x, y1: side.shapeStart.y, x2: pos.x, y2: pos.y };
+        drawShape(lctx, preview);
+      } else if (currentTool === 'eraser') {
+        showEraserCursor(side, pos);
+        if (e.buttons === 1) eraseNear(side, pos.x, pos.y);
+      }
+    });
+
+    canvas.addEventListener('pointerenter', (e) => {
+      if (currentTool === 'eraser') showEraserCursor(side, getPos(e, canvas));
+    });
+    canvas.addEventListener('pointerleave', () => hideEraserCursor(side));
+
+    function endStroke(e) {
+      e.stopPropagation();
+      if (e.pointerId !== activePointerId) return;
+      const pos = getPos(e, canvas);
+      if (side.activeStroke) {
+        side.strokes.push(side.activeStroke);
+        side.redoStack = [];
+        side.activeStroke = null;
+        clearLive(side);
+        redrawAll(side);
+        persist();
+      } else if (side.shapeStart) {
+        side.strokes.push({ tool: currentTool, color: currentColor, x1: side.shapeStart.x, y1: side.shapeStart.y, x2: pos.x, y2: pos.y });
+        side.redoStack = [];
+        side.shapeStart = null;
+        clearLive(side);
+        redrawAll(side);
+        persist();
+      }
+      activePointerId = null;
+      if (currentTool !== 'eraser') hideEraserCursor(side);
+    }
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+  }
+  attachDrawing(sides.front);
+  attachDrawing(sides.back);
+
+  function resize() {
+    dpr = Math.max(window.devicePixelRatio || 1, 1);
+    for (const side of [sides.front, sides.back]) {
+      const w = side.canvasWrap.clientWidth;
+      const h = side.canvasWrap.clientHeight;
+      for (const [c, cc] of [[side.canvas, side.ctx], [side.live, side.lctx]]) {
+        c.width = w * dpr;
+        c.height = h * dpr;
+        c.style.width = w + 'px';
+        c.style.height = h + 'px';
+        cc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      redrawAll(side);
+    }
+  }
+  window.addEventListener('resize', () => {
+    resize();
+    if (editorScreenEl.classList.contains('reading-mode')) applyReadingModeSize();
+  });
+
+  // ============ toolbar (shared across both sides) ============
+  document.querySelectorAll('.tool').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tool').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTool = btn.dataset.tool;
+      if (currentTool !== 'eraser') {
+        hideEraserCursor(sides.front);
+        hideEraserCursor(sides.back);
+      }
+    });
+  });
+
+  document.querySelectorAll('.swatch').forEach((sw) => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach((s) => s.classList.remove('active'));
+      sw.classList.add('active');
+      currentColor = sw.dataset.color;
+    });
+  });
+
+  const widthSlider = document.getElementById('width-slider');
+  widthSlider.addEventListener('input', (e) => {
+    baseWidth = parseFloat(e.target.value);
+  });
+
+  function currentSideObj() { return sides[currentSide]; }
+
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.strokes.length === 0) return;
+    side.redoStack.push(side.strokes.pop());
+    redrawAll(side);
+    persist();
+  });
+  document.getElementById('redoBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.redoStack.length === 0) return;
+    side.strokes.push(side.redoStack.pop());
+    redrawAll(side);
+    persist();
+  });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    const side = currentSideObj();
+    if (side.strokes.length === 0) return;
+    if (confirm('Clear the ' + side.name + ' of the card? This cannot be undone.')) {
+      side.strokes = [];
+      side.redoStack = [];
+      redrawAll(side);
+      persist();
+    }
+  });
+
+  // ============ hamburger menu ============
+  const menuOverlay = document.getElementById('menuOverlay');
+  const menuListView = document.getElementById('menuListView');
+  const menuSettingsView = document.getElementById('menuSettingsView');
+  const menuInstructionsView = document.getElementById('menuInstructionsView');
+  const darkToggle = document.getElementById('darkToggle');
+  const palmToggle = document.getElementById('palmToggle');
+  const defaultThicknessSlider = document.getElementById('defaultThicknessSlider');
+  const defaultThicknessValue = document.getElementById('defaultThicknessValue');
+
+  function openMenu() {
+    menuListView.classList.remove('hidden');
+    menuSettingsView.classList.add('hidden');
+    menuInstructionsView.classList.add('hidden');
+    menuOverlay.classList.add('open');
+  }
+  function closeMenu() { menuOverlay.classList.remove('open'); }
+  document.getElementById('hamburgerBtn').addEventListener('click', openMenu);
+  document.getElementById('editorMenuBtn').addEventListener('click', openMenu);
+  menuOverlay.addEventListener('click', (e) => { if (e.target === menuOverlay) closeMenu(); });
+
+  document.getElementById('menuSettingsBtn').addEventListener('click', () => {
+    menuListView.classList.add('hidden');
+    menuSettingsView.classList.remove('hidden');
+  });
+  document.getElementById('menuInstructionsBtn').addEventListener('click', () => {
+    menuListView.classList.add('hidden');
+    menuInstructionsView.classList.remove('hidden');
+  });
+  document.getElementById('menuSettingsBack').addEventListener('click', () => {
+    menuSettingsView.classList.add('hidden');
+    menuListView.classList.remove('hidden');
+  });
+  document.getElementById('menuInstructionsBack').addEventListener('click', () => {
+    menuInstructionsView.classList.add('hidden');
+    menuListView.classList.remove('hidden');
+  });
+
+  darkToggle.addEventListener('change', () => {
+    state.settings.dark = darkToggle.checked;
+    dark = state.settings.dark;
+    document.body.classList.toggle('dark', dark);
+    persist();
+  });
+  palmToggle.addEventListener('change', () => {
+    state.settings.palmRejection = palmToggle.checked;
+    hasStylus = state.settings.palmRejection;
+    persist();
+  });
+  defaultThicknessSlider.addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    state.settings.defaultWidth = v;
+    defaultThicknessValue.textContent = v;
+    baseWidth = v;
+    widthSlider.value = v;
+    persist();
+  });
+
+  function applySettingsToUI() {
+    document.body.classList.toggle('dark', state.settings.dark);
+    darkToggle.checked = state.settings.dark;
+    palmToggle.checked = state.settings.palmRejection;
+    hasStylus = state.settings.palmRejection;
+    defaultThicknessSlider.value = state.settings.defaultWidth;
+    defaultThicknessValue.textContent = state.settings.defaultWidth;
+    baseWidth = state.settings.defaultWidth;
+    widthSlider.value = state.settings.defaultWidth;
+  }
+  applySettingsToUI();
+
+  // ============ 3D flip-card physics ============
+  let angle = 0;          // 0 = resting on front, 180 = resting on back
+  let currentSide = 'front';
+  let isDraggingCard = false;
+  let dragPointerId = null;
+  let dragStartX = 0, dragStartAngle = 0;
+  let lastMoveX = 0, lastMoveT = 0;
+  let velocity = 0;       // degrees per millisecond
+  let springRAF = null;
+
+  function setCardTransform(a) {
+    card.style.transform = 'rotateY(' + a + 'deg)';
+    const sheenOpacity = Math.max(0, Math.sin(a * Math.PI / 180)) * 0.5;
+    sheenFront.style.opacity = sheenOpacity;
+    sheenBack.style.opacity = sheenOpacity;
+  }
+
+  const SOFT_MAX = 34;
+  function rubberBandDelta(delta) {
+    if (delta > 180) {
+      const over = delta - 180;
+      return 180 + SOFT_MAX * (1 - Math.exp(-over / SOFT_MAX));
+    }
+    if (delta < -180) {
+      const over = -delta - 180;
+      return -(180 + SOFT_MAX * (1 - Math.exp(-over / SOFT_MAX)));
+    }
+    return delta;
+  }
+
+  function nearestRestAngle(a) {
+    const m = ((Math.round(a / 180) * 180) % 360 + 360) % 360;
+    return m;
+  }
+
+  function cancelSpring() {
+    if (springRAF) { cancelAnimationFrame(springRAF); springRAF = null; }
+  }
+
+  function updateSideUI() {
+    sides.front.canvas.style.pointerEvents = currentSide === 'front' ? 'auto' : 'none';
+    sides.front.live.style.pointerEvents = 'none';
+    sides.back.canvas.style.pointerEvents = currentSide === 'back' ? 'auto' : 'none';
+    sides.back.live.style.pointerEvents = 'none';
+    updateDeckUI();
+  }
+
+  function springTo(target, initialVelocityDegPerMs) {
+    cancelSpring();
+    let a = angle;
+    const maxV = 2600;
+    let v = Math.max(-maxV, Math.min(maxV, initialVelocityDegPerMs * 1000));
+    const stiffness = 260;
+    const damping = 2 * Math.sqrt(stiffness) * 1.15;
+    let lastT = performance.now();
+    function step(now) {
+      const dt = Math.min((now - lastT) / 1000, 0.032);
+      lastT = now;
+      const displacement = a - target;
+      const accel = -stiffness * displacement - damping * v;
+      v += accel * dt;
+      a += v * dt;
+      angle = a;
+      setCardTransform(angle);
+      if (Math.abs(displacement) < 0.25 && Math.abs(v) < 6) {
+        angle = target;
+        setCardTransform(angle);
+        currentSide = target === 0 ? 'front' : 'back';
+        updateSideUI();
+        springRAF = null;
+        return;
+      }
+      springRAF = requestAnimationFrame(step);
+    }
+    springRAF = requestAnimationFrame(step);
+  }
+
+  function flipCard() {
+    cancelSpring();
+    const target = currentSide === 'front' ? 180 : 0;
+    springTo(target, 0.35 * (target === 180 ? 1 : -1));
+  }
+  document.getElementById('flipBtn').addEventListener('click', flipCard);
+
+  // ============ active deck: card stack ============
+  // stack[0] is the card immediately below the one currently on top,
+  // stack[stack.length-1] is the bottom. The card being shown/edited
+  // always lives in sides.front/back.strokes, not in this array.
+  let stack = [];
+  let cardCounter = 1;
+  let currentCardNumber = 1;
+  const stageEl = document.getElementById('stage');
+  const faceLabelFront = document.getElementById('faceLabelFront');
+  const faceLabelBack = document.getElementById('faceLabelBack');
+
+  function updateDeckUI() {
+    const total = stack.length + 1;
+    faceLabelFront.textContent = currentCardNumber + ' (Front)';
+    faceLabelBack.textContent = currentCardNumber + ' (Back)';
+    cardStatusEl.textContent = 'Card ' + currentCardNumber + ' of ' + total + ' \u00B7 ' + (currentSide === 'front' ? 'Front' : 'Back');
+    stageEl.classList.remove('has-deck-1', 'has-deck-2');
+    if (stack.length === 1) stageEl.classList.add('has-deck-1');
+    else if (stack.length >= 2) stageEl.classList.add('has-deck-2');
+  }
+
+  // ============ reading mode ============
+  // hides every control except the close button and lets the card grow
+  // to the largest size that fits the screen without altering its ratio
+  const editorScreenEl = document.getElementById('editorScreen');
+  const readingModeBtn = document.getElementById('readingModeBtn');
+  const readingCloseBtn = document.getElementById('readingCloseBtn');
+  const stackLayerEls = document.querySelectorAll('.stack-layer');
+
+  function fitSize(containerW, containerH, ratioW, ratioH) {
+    const ratio = ratioW / ratioH;
+    let w = containerW;
+    let h = w / ratio;
+    if (h > containerH) {
+      h = containerH;
+      w = h * ratio;
+    }
+    return { w, h };
+  }
+
+  function applyReadingModeSize() {
+    const rect = stageEl.getBoundingClientRect();
+    const { w, h } = fitSize(rect.width, rect.height, 3, 2);
+    card.style.width = w + 'px';
+    card.style.height = h + 'px';
+    stackLayerEls.forEach((el) => {
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+    });
+    resize();
+  }
+
+  function clearReadingModeSize() {
+    card.style.width = '';
+    card.style.height = '';
+    stackLayerEls.forEach((el) => {
+      el.style.width = '';
+      el.style.height = '';
+    });
+    resize();
+  }
+
+  function enterReadingMode() {
+    editorScreenEl.classList.add('reading-mode');
+    applyReadingModeSize();
+  }
+  function exitReadingMode() {
+    editorScreenEl.classList.remove('reading-mode');
+    clearReadingModeSize();
+  }
+  readingModeBtn.addEventListener('click', enterReadingMode);
+  readingCloseBtn.addEventListener('click', exitReadingMode);
+
+  function snapshotTopCard() {
+    return { number: currentCardNumber, frontStrokes: sides.front.strokes, backStrokes: sides.back.strokes };
+  }
+
+  function loadCard(cardData) {
+    currentCardNumber = cardData.number;
+    sides.front.strokes = cardData.frontStrokes || [];
+    sides.back.strokes = cardData.backStrokes || [];
+    sides.front.redoStack = [];
+    sides.back.redoStack = [];
+    sides.front.activeStroke = null;
+    sides.back.activeStroke = null;
+    sides.front.shapeStart = null;
+    sides.back.shapeStart = null;
+    clearLive(sides.front);
+    clearLive(sides.back);
+    redrawAll(sides.front);
+    redrawAll(sides.back);
+    cancelSpring();
+    angle = 0;
+    currentSide = 'front';
+    setCardTransform(0);
+    updateSideUI();
+  }
+
+  function addCard() {
+    stack.unshift(snapshotTopCard());
+    cardCounter += 1;
+    loadCard({ number: cardCounter, frontStrokes: [], backStrokes: [] });
+    baseWidth = state.settings.defaultWidth;
+    widthSlider.value = baseWidth;
+    updateDeckUI();
+    persist();
+  }
+  document.getElementById('addCardBtn').addEventListener('click', addCard);
+
+  function cycleTopCard() {
+    if (stack.length === 0 || cycling) return;
+    const prevTop = snapshotTopCard();
+    const next = stack.shift();
+    stack.push(prevTop);
+    animateCycle(next);
+  }
+
+  let cycling = false;
+  function animateCycle(next) {
+    cycling = true;
+    card.style.transition = 'transform 0.16s ease-in, opacity 0.16s ease-in';
+    card.style.transform = 'translateY(-46px) rotateY(' + angle + 'deg)';
+    card.style.opacity = '0';
+    setTimeout(() => {
+      loadCard(next);
+      updateDeckUI();
+      card.style.transition = 'none';
+      card.style.transform = 'translateY(28px) rotateY(0deg)';
+      void card.offsetHeight;
+      card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+      card.style.transform = 'translateY(0) rotateY(0deg)';
+      card.style.opacity = '1';
+      setTimeout(() => {
+        card.style.transition = '';
+        setCardTransform(angle);
+        cycling = false;
+        persist();
+      }, 190);
+    }, 160);
+  }
+
+  // dragMode: 'single' (one finger on the bezel) or 'multi' (two
+  // fingers, anywhere on the card including over the drawing surface).
+  // Pen never enters either mode — it only ever draws.
+  let dragMode = null;
+  let multiDragIds = null;
+  const touchPoints = new Map();
+
+  function avgX(ids) {
+    let sum = 0, n = 0;
+    for (const id of ids) {
+      const p = touchPoints.get(id);
+      if (p) { sum += p.x; n++; }
+    }
+    return n ? sum / n : 0;
+  }
+
+  function cancelActiveDraws() {
+    for (const side of [sides.front, sides.back]) {
+      if (side.activeStroke) { side.activeStroke = null; clearLive(side); }
+      if (side.shapeStart) { side.shapeStart = null; clearLive(side); }
+    }
+    activePointerId = null;
+  }
+
+  function beginDrag(mode, startX) {
+    isDraggingCard = true;
+    dragMode = mode;
+    cancelSpring();
+    dragStartX = startX;
+    dragStartAngle = angle;
+    lastMoveX = startX;
+    lastMoveT = performance.now();
+    velocity = 0;
+  }
+
+  function updateDrag(currentX) {
+    const now = performance.now();
+    const width = card.clientWidth || 300;
+    const degPerPx = 180 / width;
+    const dx = currentX - dragStartX;
+    const delta = rubberBandDelta(dx * degPerPx);
+    const a = dragStartAngle + delta;
+
+    const dt = now - lastMoveT;
+    if (dt > 0) {
+      const instV = (currentX - lastMoveX) * degPerPx / dt;
+      velocity = velocity * 0.7 + instV * 0.3;
+    }
+    lastMoveX = currentX;
+    lastMoveT = now;
+
+    angle = a;
+    setCardTransform(angle);
+  }
+
+  function endDrag() {
+    isDraggingCard = false;
+    dragMode = null;
+    multiDragIds = null;
+    const rawPredicted = angle + velocity * 140;
+    const clampedDelta = Math.max(-180, Math.min(180, rawPredicted - dragStartAngle));
+    const predicted = dragStartAngle + clampedDelta;
+    const target = nearestRestAngle(predicted);
+    springTo(target, velocity);
+  }
+
+  let dragStartY = 0;
+  let verticalTriggered = false;
+  const AXIS_DEADZONE = 10;
+  const CYCLE_THRESHOLD = 70;
+
+  card.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'pen') return; // pen never triggers card gestures — only draws
+    if (isDraggingCard || dragPointerId !== null) return;
+    dragPointerId = e.pointerId;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    verticalTriggered = false;
+    dragMode = 'pending-single';
+    try { card.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== dragPointerId) return;
+
+    if (dragMode === 'pending-single') {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (Math.abs(dx) < AXIS_DEADZONE && Math.abs(dy) < AXIS_DEADZONE) return;
+      if (Math.abs(dy) > Math.abs(dx) && dy < 0) {
+        dragMode = 'vertical-single';
+      } else {
+        beginDrag('single', dragStartX);
+        updateDrag(e.clientX);
+        return;
+      }
+    }
+
+    if (dragMode === 'vertical-single') {
+      const dy = e.clientY - dragStartY;
+      const lift = Math.max(dy, -120);
+      card.style.transform = 'translateY(' + lift + 'px) rotateY(' + angle + 'deg)';
+      if (!verticalTriggered && dy < -CYCLE_THRESHOLD) {
+        verticalTriggered = true;
+        cycleTopCard();
+      }
+      return;
+    }
+
+    if (dragMode === 'single') {
+      updateDrag(e.clientX);
+    }
+  });
+
+  function endSingleDrag(e) {
+    if (e.pointerId !== dragPointerId) return;
+    try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (dragMode === 'vertical-single') {
+      if (!verticalTriggered) setCardTransform(angle);
+    } else if (dragMode === 'single') {
+      endDrag();
+    }
+    dragMode = null;
+    dragPointerId = null;
+  }
+  card.addEventListener('pointerup', endSingleDrag);
+  card.addEventListener('pointercancel', endSingleDrag);
+
+  card.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPoints.size === 2 && !isDraggingCard) {
+      e.stopPropagation();
+      cancelActiveDraws();
+      multiDragIds = Array.from(touchPoints.keys());
+      beginDrag('multi', avgX(multiDragIds));
+    }
+  }, true);
+
+  card.addEventListener('pointermove', (e) => {
+    if (!touchPoints.has(e.pointerId)) return;
+    touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (isDraggingCard && dragMode === 'multi' && multiDragIds && multiDragIds.includes(e.pointerId)) {
+      e.stopPropagation();
+      updateDrag(avgX(multiDragIds));
+    }
+  }, true);
+
+  function endMultiTouch(e) {
+    if (!touchPoints.has(e.pointerId)) return;
+    const wasDragging = isDraggingCard && dragMode === 'multi' && multiDragIds && multiDragIds.includes(e.pointerId);
+    touchPoints.delete(e.pointerId);
+    if (wasDragging) {
+      e.stopPropagation();
+      endDrag();
+    }
+  }
+  card.addEventListener('pointerup', endMultiTouch, true);
+  card.addEventListener('pointercancel', endMultiTouch, true);
+
+  // ============ deck (home screen) management ============
+  const deckGridEl = document.getElementById('deckGrid');
+  const emptyStateEl = document.getElementById('emptyState');
+
+  function renderDeckGrid() {
+    deckGridEl.innerHTML = '';
+    const has = state.decks.length > 0;
+    emptyStateEl.style.display = has ? 'none' : 'flex';
+    deckGridEl.style.display = has ? 'grid' : 'none';
+    state.decks.forEach((d) => {
+      const tile = document.createElement('div');
+      tile.className = 'deck-tile';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'deck-tile-name';
+      nameEl.textContent = d.name;
+
+      const countEl = document.createElement('div');
+      countEl.className = 'deck-tile-count';
+      const total = d.stack.length + 1;
+      countEl.textContent = total + (total === 1 ? ' card' : ' cards');
+
+      const kebab = document.createElement('button');
+      kebab.className = 'deck-kebab';
+      kebab.innerHTML = '&#8942;';
+      kebab.title = 'Deck options';
+      kebab.addEventListener('click', (e) => { e.stopPropagation(); openDeckMenu(kebab, d); });
+
+      tile.appendChild(nameEl);
+      tile.appendChild(countEl);
+      tile.appendChild(kebab);
+      tile.addEventListener('click', () => openDeck(d));
+      deckGridEl.appendChild(tile);
+    });
+  }
+
+  function openDeck(d) {
+    activeDeck = d;
+    cardCounter = d.cardCounter;
+    currentCardNumber = d.currentCardNumber;
+    stack = d.stack;
+    deckNameEl.textContent = d.name;
+    loadCard({ number: currentCardNumber, frontStrokes: d.frontStrokes, backStrokes: d.backStrokes });
+    updateDeckUI();
+    showScreen('editor');
+  }
+
+  function goHome() {
+    persist();
+    activeDeck = null;
+    showScreen('home');
+    renderDeckGrid();
+  }
+  document.getElementById('backBtn').addEventListener('click', goHome);
+
+  function createDeck(name) {
+    const d = normalizeDeck({ name });
+    state.decks.push(d);
+    persist();
+    return d;
+  }
+
+  function renameDeck(d, newName) {
+    d.name = newName.trim() || d.name;
+    if (activeDeck === d) deckNameEl.textContent = d.name;
+    persist();
+    renderDeckGrid();
+  }
+
+  function deleteDeck(d) {
+    state.decks = state.decks.filter((x) => x !== d);
+    if (activeDeck === d) {
+      activeDeck = null;
+      showScreen('home');
+    }
+    persist();
+    renderDeckGrid();
+  }
+
+  document.getElementById('fab').addEventListener('click', () => {
+    openNameModal('New deck', 'Deck ' + (state.decks.length + 1), (val) => {
+      const d = createDeck(val);
+      renderDeckGrid();
+      openDeck(d);
+    });
+  });
+
+  // ---- deck kebab popover ----
+  const deckMenu = document.getElementById('deckMenu');
+  let deckMenuTarget = null;
+  function openDeckMenu(button, d) {
+    deckMenuTarget = d;
+    const rect = button.getBoundingClientRect();
+    deckMenu.style.top = (rect.bottom + 6) + 'px';
+    deckMenu.style.left = Math.max(8, rect.right - 140) + 'px';
+    deckMenu.classList.add('open');
+  }
+  function closeDeckMenu() { deckMenu.classList.remove('open'); deckMenuTarget = null; }
+  document.getElementById('deckMenuRename').addEventListener('click', () => {
+    const d = deckMenuTarget;
+    closeDeckMenu();
+    if (d) openNameModal('Rename deck', d.name, (val) => renameDeck(d, val));
+  });
+  document.getElementById('deckMenuDelete').addEventListener('click', () => {
+    const d = deckMenuTarget;
+    closeDeckMenu();
+    if (d && confirm('Delete "' + d.name + '"? This cannot be undone.')) deleteDeck(d);
+  });
+  document.addEventListener('click', (e) => {
+    if (deckMenu.classList.contains('open') && !deckMenu.contains(e.target) && !e.target.closest('.deck-kebab')) closeDeckMenu();
+  });
+
+  // ---- name modal (used for both create and rename) ----
+  const nameModalOverlay = document.getElementById('nameModalOverlay');
+  const nameModalTitle = document.getElementById('nameModalTitle');
+  const nameModalInput = document.getElementById('nameModalInput');
+  let nameModalCallback = null;
+
+  function openNameModal(title, value, onSave) {
+    nameModalTitle.textContent = title;
+    nameModalInput.value = value;
+    nameModalCallback = onSave;
+    nameModalOverlay.classList.add('open');
+    setTimeout(() => { nameModalInput.focus(); nameModalInput.select(); }, 30);
+  }
+  function closeNameModal() {
+    nameModalOverlay.classList.remove('open');
+    nameModalCallback = null;
+  }
+  document.getElementById('nameModalCancel').addEventListener('click', closeNameModal);
+  document.getElementById('nameModalSave').addEventListener('click', () => {
+    const val = nameModalInput.value.trim();
+    if (val && nameModalCallback) nameModalCallback(val);
+    closeNameModal();
+  });
+  nameModalInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('nameModalSave').click();
+    if (e.key === 'Escape') closeNameModal();
+  });
+  nameModalOverlay.addEventListener('click', (e) => { if (e.target === nameModalOverlay) closeNameModal(); });
+
+  // ============ boot ============
+  showScreen('home');
+  renderDeckGrid();
+  resize();
+  window.addEventListener('load', resize);
+  setTimeout(resize, 50);
+})();
+</script>
+</body>
+</html>
