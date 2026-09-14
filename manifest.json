@@ -1,6 +1,6 @@
 {
-  "name": "xnotes",
-  "short_name": "xnotes",
+  "name": "Flashcards",
+  "short_name": "Flashcards",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#F3EFE6",
